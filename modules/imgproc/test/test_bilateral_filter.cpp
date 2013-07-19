@@ -265,7 +265,7 @@ namespace cvtest
         }
 
         double e = norm(reference_dst, _parallel_dst);
-        if (e > eps)
+        if (e > sqrt(3.0)*eps)
         {
             ts->printf(cvtest::TS::CONSOLE, "actual error: %g, expected: %g", e, eps);
             ts->set_failed_test_info(cvtest::TS::FAIL_BAD_ACCURACY);

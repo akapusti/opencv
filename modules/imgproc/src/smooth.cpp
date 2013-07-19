@@ -2202,6 +2202,26 @@ void cv::bilateralFilter( InputArray _src, OutputArray _dst, int d,
     _dst.create( src.size(), src.type() );
     Mat dst = _dst.getMat();
 
+#if defined HAVE_IPP && (IPP_VERSION_MAJOR >= 7)
+#define D_MAX_W_KNL 5
+#define D_MAX_H_KNL 5
+    IppiSize kernel;
+    kernel.width = D_MAX_W_KNL;
+    kernel.height = D_MAX_H_KNL;
+    IppiFilterBilateralSpec *pSpec;
+    int bufsize;
+    IppiSize roi={src.cols, src.rows};
+    IppStatus is;
+    if(src.depth() == CV_8U && src.channels() == 1)
+    {
+        ippiFilterBilateralGetBufSize_8u_C1R( ippiFilterBilateralGauss, roi, kernel, &bufsize);
+        pSpec = (IppiFilterBilateralSpec *)ippsMalloc_8u( bufsize );
+        ippiFilterBilateralInit_8u_C1R( ippiFilterBilateralGauss, kernel, sigmaColor, sigmaSpace, d, pSpec );
+        is = ippiFilterBilateral_8u_C1R(src.data, src.cols, dst.data, dst.cols, roi, kernel, pSpec );
+        return;
+    }
+#endif
+
     if( src.depth() == CV_8U )
         bilateralFilter_8u( src, dst, d, sigmaColor, sigmaSpace, borderType );
     else if( src.depth() == CV_32F )
