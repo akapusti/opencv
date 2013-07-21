@@ -779,6 +779,17 @@ cvDistTransform( const void* srcarr, void* dstarr,
 
         if( !labels )
         {
+#if defined (HAVE_IPP) && (IPP_VERSION_MAJOR >= 7)
+    if(CV_MAT_TYPE(src->type) == CV_8U && CV_MAT_TYPE(dst->type) == CV_32F && maskSize == CV_DIST_MASK_5 && mask)
+    {
+        IppiSize roi;
+        roi.width = src->cols;
+        roi.height = src->rows;
+        IppStatus i2 = ippiDistanceTransform_5x5_8u32f_C1R( (const Ipp8u*)src->data.ptr, src->step, 
+            (Ipp32f*)dst->data.ptr, dst->step, roi, (Ipp32f*)mask );
+        return;
+    }
+#endif
             CvDistTransFunc func = maskSize == CV_DIST_MASK_3 ?
                 icvDistanceTransform_3x3_C1R :
                 icvDistanceTransform_5x5_C1R;
