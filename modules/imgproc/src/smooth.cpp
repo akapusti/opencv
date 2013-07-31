@@ -856,6 +856,21 @@ void cv::GaussianBlur( InputArray _src, OutputArray _dst, Size ksize,
         return;
 #endif
 
+#if defined (HAVE_IPP) && (IPP_VERSION_MAJOR >= 7)
+    if(src.type() == CV_32F && src.channels() == 1 && sigma1 == sigma2 && ksize.width == ksize.height && sigma1 != 0.0 )
+    {
+        IppiSize roi = {src.cols, src.rows};
+        int bufSize;
+        ippiFilterGaussGetBufferSize_32f_C1R(roi, ksize.width, &bufSize);
+        Ipp8u* buff = ippsMalloc_8u(bufSize);
+        IppStatus is = ippiFilterGaussBorder_32f_C1R((const Ipp32f *)src.data, src.step, (Ipp32f *)dst.data, dst.step,
+            roi, ksize.width, (Ipp32f)sigma1, (IppiBorderType)borderType, 0.0, buff);
+        ippsFree(buff);
+        if(is >= 0)
+            return;
+    }
+#endif
+
     Ptr<FilterEngine> f = createGaussianFilter( src.type(), ksize, sigma1, sigma2, borderType );
     f->apply( src, dst );
 }
@@ -2203,21 +2218,18 @@ void cv::bilateralFilter( InputArray _src, OutputArray _dst, int d,
     Mat dst = _dst.getMat();
 
 #if defined HAVE_IPP && (IPP_VERSION_MAJOR >= 7)
-    IppiSize kernel;
-    kernel.width = d;
-    kernel.height = d;
-    IppiFilterBilateralSpec *pSpec;
-    int bufsize;
-    IppiSize roi={src.cols, src.rows};
-    IppStatus is;
     if(src.depth() == CV_8U && src.channels() == 1)
     {
+        IppiSize kernel = {d, d};
+        IppiSize roi={src.cols, src.rows};
+        int bufsize;
         ippiFilterBilateralGetBufSize_8u_C1R( ippiFilterBilateralGauss, roi, kernel, &bufsize);
-        pSpec = (IppiFilterBilateralSpec *)ippsMalloc_8u( bufsize );
+        IppiFilterBilateralSpec *pSpec = (IppiFilterBilateralSpec *)ippsMalloc_8u( bufsize );
         ippiFilterBilateralInit_8u_C1R( ippiFilterBilateralGauss, kernel, sigmaColor, sigmaSpace, d, pSpec );
-        is = ippiFilterBilateral_8u_C1R(src.data, src.cols, dst.data, dst.cols, roi, kernel, pSpec );
+        IppStatus is = ippiFilterBilateral_8u_C1R(src.data, src.cols, dst.data, dst.cols, roi, kernel, pSpec );
         ippsFree(pSpec);
-        return;
+        if(is >= 0)
+            return;
     }
 #endif
 
