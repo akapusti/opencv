@@ -1156,72 +1156,105 @@ static void morphOp( int op, InputArray _src, OutputArray _dst,
         return;
     }
 
+#if defined HAVE_IPP && (IPP_VERSION_MAJOR >= 7)
+    if( src.data != dst.data && countNonZero(kernel) == kernel.rows*kernel.cols )
+    {
+        IppiSize roi={src.cols, src.rows}, mask={kernel.cols, kernel.rows};
+        IppiPoint anchor1 = {anchor.x,anchor.y};
+        int bufSize;
+        Ipp8u* pBuff;
+        IppStatus is = ippStsNoOperation;
+        if(src.depth() == CV_8U && src.channels() == 1 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_8u_C1R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_8u_C1R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_8u_C1R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_8u_C1R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        else if(src.depth() == CV_8U && src.channels() == 3 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_8u_C3R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_8u_C3R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_8u_C3R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_8u_C3R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        else if(src.depth() == CV_8U && src.channels() == 4 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_8u_C4R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_8u_C4R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_8u_C4R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_8u_C4R(src.data, src.step, dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        else if(src.depth() == CV_32F && src.channels() == 1 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_32f_C1R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_32f_C1R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_32f_C1R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_32f_C1R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        else if(src.depth() == CV_32F && src.channels() == 3 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_32f_C3R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_32f_C3R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_32f_C3R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_32f_C3R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        else if(src.depth() == CV_32F && src.channels() == 4 )
+        {
+            if (op == MORPH_ERODE) {
+                is = ippiFilterMinGetBufferSize_32f_C4R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMinBorderReplicate_32f_C4R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+            else if (op == MORPH_DILATE) {
+                is = ippiFilterMaxGetBufferSize_32f_C4R( roi.width, mask, &bufSize);
+                pBuff = ippsMalloc_8u( bufSize );
+                is = ippiFilterMaxBorderReplicate_32f_C4R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchor1, pBuff);
+            }
+        }
+        if(is != ippStsNoOperation)
+            ippsFree(pBuff);
+
+        if(is >= 0 && is != ippStsNoOperation)
+            return;
+    }
+#endif
+
     if( !kernel.data )
     {
         kernel = getStructuringElement(MORPH_RECT, Size(1+iterations*2,1+iterations*2));
         anchor = Point(iterations, iterations);
         iterations = 1;
-#if defined HAVE_IPP && (IPP_VERSION_MAJOR >= 7)
-        IppiSize roi={src.cols, src.rows}, mask={kernel.cols, kernel.rows};
-        Ipp8u* bufSize = ippsMalloc_8u(roi.width*roi.height);
-        IppiPoint anchorIPP = {anchor.x, anchor.y};
-        IppStatus is;
-        if(src.type() == CV_MAKETYPE(CV_8U, 1))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_8u_C1R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, bufSize);
-            else if (op == MORPH_DILATE) {
-                is = ippiFilterMaxBorderReplicate_8u_C1R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            }
-            ippsFree(bufSize);
-            return;
-        }
-        else if(src.type() == CV_MAKETYPE(CV_8U, 3))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_8u_C3R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            else if (op == MORPH_DILATE)
-                is = ippiFilterMaxBorderReplicate_8u_C3R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            ippsFree(bufSize);
-            return;
-        }
-        else if(src.type() == CV_MAKETYPE(CV_8U, 4))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_8u_C4R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            else if (op == MORPH_DILATE)
-                is = ippiFilterMaxBorderReplicate_8u_C4R(src.data, src.step, dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            ippsFree(bufSize);
-            return;
-        }
-        else if(src.type() == CV_MAKETYPE(CV_32F, 1))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_32f_C1R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            else if (op == MORPH_DILATE)
-                is = ippiFilterMaxBorderReplicate_32f_C1R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            ippsFree(bufSize);
-            return;
-        }
-        else if(src.type() == CV_MAKETYPE(CV_32F, 3))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_32f_C3R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            else if (op == MORPH_DILATE)
-                is = ippiFilterMaxBorderReplicate_32f_C3R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            ippsFree(bufSize);
-            return;
-        }
-        else if(src.type() == CV_MAKETYPE(CV_32F, 4))
-        {
-            if (op == MORPH_ERODE)
-                is = ippiFilterMinBorderReplicate_32f_C4R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            else if (op == MORPH_DILATE)
-                is = ippiFilterMaxBorderReplicate_32f_C4R((const Ipp32f*)src.data, src.step, (Ipp32f*)dst.data, dst.step, roi, mask, anchorIPP, (Ipp8u*)bufSize);
-            ippsFree(bufSize);
-            return;
-        }
-#endif
     }
     else if( iterations > 1 && countNonZero(kernel) == kernel.rows*kernel.cols )
     {
