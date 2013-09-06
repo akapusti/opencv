@@ -81,12 +81,13 @@ class CV_EXPORTS BaseRowFilter
 {
 public:
     //! the default constructor
-    BaseRowFilter();
+    BaseRowFilter(); 
     //! the destructor
     virtual ~BaseRowFilter();
     //! the filtering operator. Must be overrided in the derived classes. The horizontal border interpolation is done outside of the class.
     virtual void operator()(const uchar* src, uchar* dst,
                             int width, int cn) = 0;
+    virtual uchar* getKernelData(){return 0;};
     int ksize, anchor;
 };
 
@@ -116,6 +117,7 @@ public:
                             int dstcount, int width) = 0;
     //! resets the internal buffers, if any
     virtual void reset();
+    virtual uchar* getKernelData(){return 0;}; 
     int ksize, anchor;
 };
 
@@ -759,20 +761,20 @@ CV_EXPORTS double compareHist( const SparseMat& H1, const SparseMat& H2, int met
 //! normalizes the grayscale image brightness and contrast by normalizing its histogram
 CV_EXPORTS_W void equalizeHist( InputArray src, OutputArray dst );
 
-class CV_EXPORTS_W CLAHE : public Algorithm
+class CV_EXPORTS CLAHE : public Algorithm
 {
 public:
-    CV_WRAP virtual void apply(InputArray src, OutputArray dst) = 0;
+    virtual void apply(InputArray src, OutputArray dst) = 0;
 
-    CV_WRAP virtual void setClipLimit(double clipLimit) = 0;
-    CV_WRAP virtual double getClipLimit() const = 0;
+    virtual void setClipLimit(double clipLimit) = 0;
+    virtual double getClipLimit() const = 0;
 
-    CV_WRAP virtual void setTilesGridSize(Size tileGridSize) = 0;
-    CV_WRAP virtual Size getTilesGridSize() const = 0;
+    virtual void setTilesGridSize(Size tileGridSize) = 0;
+    virtual Size getTilesGridSize() const = 0;
 
-    CV_WRAP virtual void collectGarbage() = 0;
+    virtual void collectGarbage() = 0;
 };
-CV_EXPORTS_W Ptr<CLAHE> createCLAHE(double clipLimit = 40.0, Size tileGridSize = Size(8, 8));
+CV_EXPORTS Ptr<CLAHE> createCLAHE(double clipLimit = 40.0, Size tileGridSize = Size(8, 8));
 
 CV_EXPORTS float EMD( InputArray signature1, InputArray signature2,
                       int distType, InputArray cost=noArray(),

@@ -354,6 +354,21 @@ int FilterEngine::proceed( const uchar* src, int srcstep, int count,
 
     CV_Assert( src && dst && count > 0 );
 
+#if defined (HAVE_IPP) && (IPP_VERSION_MAJOR >= 7)
+                    IppiSize ipp_ksize = {ksize.width, 1};
+                    uchar* kdata = (*rowFilter).getKernelData();
+                    Ipp16s* pKerX = ippsMalloc_16s(ipp_ksize.width * ipp_ksize.height);
+                    for(int i = 0; i < ipp_ksize.width * ipp_ksize.height; i++ )
+                    {
+                        pKerX[i] = ((int*)(kdata))[i];
+                    }
+                    IppStatus is;
+                    IppiSize roiSize = {3*wholeSize.width, 1/*wholeSize.height*/};
+                    int sizeRow;
+                    is = ippiFilterRowBorderPipelineGetBufferSize_8u16s_C3R(roiSize, ksize.width, &sizeRow);
+        
+                    Ipp8u* pBufRow = ippsMalloc_8u(sizeRow);
+#endif
     for(;; dst += dststep*i, dy += i)
     {
         int dcount = bufRows - ay - startY - rowCount + roi.y;
@@ -365,7 +380,7 @@ int FilterEngine::proceed( const uchar* src, int srcstep, int count,
             int bi = (startY - startY0 + rowCount) % bufRows;
             uchar* brow = alignPtr(&ringBuf[0], VEC_ALIGN) + bi*bufStep;
             uchar* row = isSep ? &srcRow[0] : brow;
-
+ 
             if( ++rowCount > bufRows )
             {
                 --rowCount;
@@ -394,9 +409,24 @@ int FilterEngine::proceed( const uchar* src, int srcstep, int count,
                         row[i + (width1 - _dx2)*esz] = src[btab[i+_dx1*esz]];
                 }
             }
-
-            if( isSep )
-                (*rowFilter)(row, brow, width, CV_MAT_CN(srcType));
+            if( isSep ) {
+#if defined (HAVE_IPP) && (IPP_VERSION_MAJOR >= 7)
+                if (srcType == CV_8UC3) {
+                    is = ippiFilterRowBorderPipeline_8u16s_C3R((const Ipp8u*)row, 9*wholeSize.width, (Ipp16s**)&brow, roiSize,
+                        pKerX, ksize.width, 1,(IppiBorderType)rowBorderType/*ippBorderRepl*/, 0, 2, pBufRow);
+                    if(is >= 0) {
+                        ((int*)brow)[0] = 2*((Ipp16s*)(brow))[3];
+                        ((int*)brow)[1] = 2*((Ipp16s*)(brow))[4];
+                        for(int i = roiSize.width-1; i>1; i-- )
+                        {
+                            ((int*)brow)[i] = 2*((Ipp16s*)(brow))[i+3];
+                        }
+                        continue;
+                    }
+#endif 
+                }
+                    (*rowFilter)(row, brow, width, CV_MAT_CN(srcType));
+            }
         }
 
         int max_i = std::min(bufRows, roi.height - (dstY + dy) + (kheight - 1));
@@ -418,12 +448,14 @@ int FilterEngine::proceed( const uchar* src, int srcstep, int count,
         if( i < kheight )
             break;
         i -= kheight - 1;
-        if( isSeparable() )
+        if( isSeparable() ) {
             (*columnFilter)((const uchar**)brows, dst, dststep, i, roi.width*cn);
-        else
+            int kap =0;
+        }        else
             (*filter2D)((const uchar**)brows, dst, dststep, i, roi.width, cn);
     }
-
+                    ippsFree(pBufRow);
+                    ippsFree(pKerX);
     dstY += dy;
     CV_Assert( dstY <= roi.height );
     return dy;
@@ -2218,7 +2250,12 @@ template<typename ST, typename DT, class VecOp> struct RowFilter : public BaseRo
         vecOp = _vecOp;
     }
 
-    void operator()(const uchar* src, uchar* dst, int width, int cn)
+    uchar* getKernelData()
+    {
+        return kernel.data;
+    };
+
+void operator()(const uchar* src, uchar* dst, int width, int cn)
     {
         int _ksize = ksize;
         const DT* kx = (const DT*)kernel.data;
@@ -2226,7 +2263,7 @@ template<typename ST, typename DT, class VecOp> struct RowFilter : public BaseRo
         DT* D = (DT*)dst;
         int i, k;
 
-        i = vecOp(src, dst, width, cn);
+        i = 0;//vecOp(src, dst, width, cn);
         width *= cn;
         #if CV_ENABLE_UNROLLED
         for( ; i <= width - 4; i += 4 )
